@@ -88,8 +88,19 @@ export class LaunchMainService implements ILaunchMainService {
 		if (urlsToOpen.length) {
 			let whenWindowReady: Promise<unknown> = Promise.resolve();
 
+			// If there are also folder/file args, open them via the normal
+			// window flow so both the URL and workspace are handled.
+			const hasWindowArgs = !!args._.length || !!args['folder-uri'] || !!args['file-uri'];
+			if (hasWindowArgs) {
+				await this.startOpenWindow(args, userEnv);
+				const window = this.windowsMainService.getLastActiveWindow();
+				if (window) {
+					whenWindowReady = window.ready();
+				}
+			}
+
 			// Create a window if there is none
-			if (this.windowsMainService.getWindowCount() === 0) {
+			else if (this.windowsMainService.getWindowCount() === 0) {
 				const window = (await this.windowsMainService.openEmptyWindow({ context: OpenContext.DESKTOP })).at(0);
 				if (window) {
 					whenWindowReady = window.ready();
