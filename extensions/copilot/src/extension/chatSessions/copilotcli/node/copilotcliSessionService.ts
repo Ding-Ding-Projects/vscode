@@ -549,6 +549,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			const sessionManager = await raceCancellationError(this.getSessionManager(), token);
 			const sdkSession = await sessionManager.createSession({ ...sessionOptions, sessionId: options.sessionId });
 			this._newSessionIds.delete(sdkSession.sessionId);
+			await sessionManager.loadDeferredRepoHooks(sdkSession);
 			// After the first session creation, the SDK's OTel TracerProvider is
 			// initialized. Install the bridge processor so SDK-native spans flow
 			// to the debug panel.
@@ -759,7 +760,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					this.logService.error(`[CopilotCLISession] CopilotCLI failed to get session ${options.sessionId}.`);
 					return undefined;
 				}
-
+				await sessionManager.loadDeferredRepoHooks(sdkSession);
 				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
 				session.object.add(mcpGateway);
 				return session;
