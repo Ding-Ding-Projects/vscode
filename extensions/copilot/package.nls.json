@@ -375,6 +375,7 @@
 	"github.copilot.config.workspace.preferredEmbeddingsModel": "Preferred embeddings model for semantic search.",
 	"github.copilot.config.workspace.prototypeAdoCodeSearchEndpointOverride": "Override endpoint for Azure DevOps code search prototype.",
 	"github.copilot.config.feedback.onChange": "Enable feedback collection on configuration changes.",
+	"github.copilot.config.surveys.enabled": "Allow GitHub Copilot to show occasional survey invitations. Disabled by default.",
 	"github.copilot.config.review.intent": "Enable intent detection for code review.",
 	"github.copilot.config.notebook.summaryExperimentEnabled": "Enable the notebook summary experiment.",
 	"github.copilot.config.notebook.variableFilteringEnabled": "Enable filtering variables by cell document symbols.",

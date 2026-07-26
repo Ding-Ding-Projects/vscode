@@ -20,6 +20,7 @@ import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
 import { RemoteSourceAction } from './typings/git-base';
 import { CloneManager } from './cloneManager';
+import { createDesktopMaterialLaunchSpec, type DesktopMaterialExecutableResolution, launchDesktopMaterial, resolveDesktopMaterialExecutable } from './desktopMaterial';
 
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
@@ -1227,6 +1228,51 @@ export class CommandCenter {
 		}
 
 		await this.model.openRepository(path, true, true);
+	}
+
+	@command('git.openInDesktopMaterial', { repository: true })
+	async openInDesktopMaterial(repository: Repository): Promise<void> {
+		const configuredPath = workspace.getConfiguration('git').get<string | null>('desktopMaterial.path');
+		const executableResolution = resolveDesktopMaterialExecutable(configuredPath);
+
+		if (!executableResolution.ok) {
+			await this.showDesktopMaterialError(this.getDesktopMaterialResolutionErrorMessage(executableResolution));
+			return;
+		}
+
+		try {
+			const launchSpec = createDesktopMaterialLaunchSpec(executableResolution.executablePath, repository.root);
+			await launchDesktopMaterial(launchSpec);
+			await window.showInformationMessage(l10n.t('Opened "{0}" in Desktop Material.', path.basename(repository.root)));
+		} catch (error) {
+			const candidateErrorCode = typeof error === 'object' && error !== null ? (error as { readonly code?: unknown }).code : undefined;
+			const errorCode = typeof candidateErrorCode === 'string' && /^[a-z0-9._-]{1,64}$/i.test(candidateErrorCode)
+				? candidateErrorCode
+				: undefined;
+			this.logger.error(`[CommandCenter][openInDesktopMaterial] Failed to launch Desktop Material${errorCode ? ` (${errorCode})` : ''}.`);
+			await this.showDesktopMaterialError(l10n.t('Desktop Material could not be launched.'));
+		}
+	}
+
+	private getDesktopMaterialResolutionErrorMessage(resolution: Extract<DesktopMaterialExecutableResolution, { ok: false }>): string {
+		switch (resolution.reason) {
+			case 'configuredPathNotAbsolute':
+				return l10n.t('The configured Desktop Material executable path must be absolute: "{0}".', resolution.configuredPath ?? '');
+			case 'configuredPathIsCommandScript':
+				return l10n.t('The configured Desktop Material path must point directly to an executable, not a .bat or .cmd file.');
+			case 'configuredPathNotFound':
+				return l10n.t('The configured Desktop Material executable was not found: "{0}".', resolution.configuredPath ?? '');
+			case 'notDetected':
+				return l10n.t('Desktop Material was not detected. Install it or configure a direct executable with the "git.desktopMaterial.path" setting.');
+		}
+	}
+
+	private async showDesktopMaterialError(message: string): Promise<void> {
+		const configure = l10n.t('Configure Desktop Material');
+		const result = await window.showErrorMessage(message, configure);
+		if (result === configure) {
+			await commands.executeCommand('workbench.action.openSettings', '@id:git.desktopMaterial.path');
+		}
 	}
 
 	@command('git.reopenClosedRepositories', { repository: false })

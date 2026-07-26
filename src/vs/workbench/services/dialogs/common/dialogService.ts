@@ -10,6 +10,7 @@ import { DialogsModel } from '../../../common/dialogs.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class DialogService extends Disposable implements IDialogService {
 
@@ -23,7 +24,8 @@ export class DialogService extends Disposable implements IDialogService {
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -43,7 +45,7 @@ export class DialogService extends Disposable implements IDialogService {
 			return { confirmed: true };
 		}
 
-		const handle = this.model.show({ confirmArgs: { confirmation } });
+		const handle = this.model.show({ confirmArgs: { confirmation }, modal: !this.useNotificationDialogs });
 
 		return await handle.result as IConfirmationResult;
 	}
@@ -56,7 +58,7 @@ export class DialogService extends Disposable implements IDialogService {
 			throw new Error(`DialogService: refused to show dialog in tests. Contents: ${prompt.message}`);
 		}
 
-		const handle = this.model.show({ promptArgs: { prompt } });
+		const handle = this.model.show({ promptArgs: { prompt }, modal: !this.useNotificationDialogs });
 
 		const dialogResult = await handle.result as IAsyncPromptResult<T> | IAsyncPromptResultWithCancel<T>;
 
@@ -71,7 +73,7 @@ export class DialogService extends Disposable implements IDialogService {
 			throw new Error('DialogService: refused to show input dialog in tests.');
 		}
 
-		const handle = this.model.show({ inputArgs: { input } });
+		const handle = this.model.show({ inputArgs: { input }, modal: !this.useNotificationDialogs });
 
 		return await handle.result as IInputResult;
 	}
@@ -93,8 +95,13 @@ export class DialogService extends Disposable implements IDialogService {
 			throw new Error('DialogService: refused to show about dialog in tests.');
 		}
 
-		const handle = this.model.show({});
+		const handle = this.model.show({ modal: !this.useNotificationDialogs });
 		await handle.result;
+	}
+
+	private get useNotificationDialogs(): boolean {
+		return this.configurationService.getValue('window.dialogStyle') === 'notification' &&
+			!this.environmentService.enableSmokeTestDriver;
 	}
 }
 

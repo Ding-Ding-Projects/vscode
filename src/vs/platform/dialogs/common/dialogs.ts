@@ -18,6 +18,12 @@ export interface IDialogArgs {
 	readonly confirmArgs?: IConfirmDialogArgs;
 	readonly inputArgs?: IInputDialogArgs;
 	readonly promptArgs?: IPromptDialogArgs;
+
+	/**
+	 * Whether showing this queued interaction should emit the public modal-dialog
+	 * lifecycle events. Notification-backed dialogs set this to false.
+	 */
+	readonly modal?: boolean;
 }
 
 export interface IBaseDialogOptions {

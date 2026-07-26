@@ -13,6 +13,7 @@ import { NotebookFindFilters } from '../../notebook/browser/contrib/find/findFil
 import { NotebookFindInputFilterButton } from '../../notebook/browser/contrib/find/notebookFindReplaceWidget.js';
 import * as nls from '../../../../nls.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 
 
 export class SearchFindInput extends ContextScopedFindInput {
@@ -20,6 +21,9 @@ export class SearchFindInput extends ContextScopedFindInput {
 	private _filterChecked: boolean = false;
 	private readonly _onDidChangeAIToggle = this._register(new Emitter<boolean>());
 	public readonly onDidChangeAIToggle = this._onDidChangeAIToggle.event;
+	private readonly _onDidSearchOptionChange = this._register(new Emitter<void>());
+	public readonly onDidSearchOptionChange = this._onDidSearchOptionChange.event;
+	private _regexBuilderToggle: Toggle | undefined;
 
 	constructor(
 		container: HTMLElement | null,
@@ -32,6 +36,7 @@ export class SearchFindInput extends ContextScopedFindInput {
 		filterStartVisiblitity: boolean
 	) {
 		super(container, contextViewProvider, options, contextKeyService);
+		this._register(this.onDidOptionChange(() => this._onDidSearchOptionChange.fire()));
 		this._findFilter = this._register(
 			new NotebookFindInputFilterButton(
 				filters,
@@ -50,11 +55,47 @@ export class SearchFindInput extends ContextScopedFindInput {
 	}
 
 	private _updatePadding() {
-		this.inputBox.paddingRight =
+		const controlsWidth =
 			(this.caseSensitive?.visible ? this.caseSensitive.width() : 0) +
 			(this.wholeWords?.visible ? this.wholeWords.width() : 0) +
 			(this.regex?.visible ? this.regex.width() : 0) +
-			(this._findFilter.visible ? this._findFilter.width() : 0);
+			(this._findFilter.visible ? this._findFilter.width() : 0) +
+			(this._regexBuilderToggle?.visible ? this._regexBuilderToggle.width() : 0);
+		this.inputBox.paddingRight = controlsWidth + this.inputBox.actionsWidth;
+	}
+
+	setRegexBuilderToggle(toggle: Toggle): void {
+		this._regexBuilderToggle = toggle;
+		this.controls.appendChild(toggle.domNode);
+		this._updatePadding();
+	}
+
+	focusRegexBuilderToggle(): void {
+		this._regexBuilderToggle?.focus();
+	}
+
+	override setCaseSensitive(value: boolean): void {
+		const changed = value !== this.getCaseSensitive();
+		super.setCaseSensitive(value);
+		if (changed) {
+			this._onDidSearchOptionChange.fire();
+		}
+	}
+
+	override setWholeWords(value: boolean): void {
+		const changed = value !== this.getWholeWords();
+		super.setWholeWords(value);
+		if (changed) {
+			this._onDidSearchOptionChange.fire();
+		}
+	}
+
+	override setRegex(value: boolean): void {
+		const changed = value !== this.getRegex();
+		super.setRegex(value);
+		if (changed) {
+			this._onDidSearchOptionChange.fire();
+		}
 	}
 
 	set filterVisible(visible: boolean) {
@@ -65,6 +106,11 @@ export class SearchFindInput extends ContextScopedFindInput {
 
 	override setEnabled(enabled: boolean) {
 		super.setEnabled(enabled);
+		if (enabled) {
+			this._regexBuilderToggle?.enable();
+		} else {
+			this._regexBuilderToggle?.disable();
+		}
 		if (enabled && (!this._filterChecked || !this._findFilter.visible)) {
 			this.regex?.enable();
 		} else {

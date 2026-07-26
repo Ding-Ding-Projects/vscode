@@ -292,5 +292,44 @@ suite('Notifications', () => {
 		item3Handle.close();
 	});
 
+	test('Dismissed history is bounded, inert, and ignores dedup replacements', () => {
+		const model = disposables.add(new NotificationsModel());
+		let historyChanges = 0;
+		disposables.add(model.onDidChangeHistory(() => historyChanges++));
+
+		const first = model.addNotification({ severity: Severity.Warning, message: 'Read [the docs](https://example.com/private)', source: 'Example source' });
+		const survivingDuplicate = model.addNotification({ severity: Severity.Warning, message: 'Read [the docs](https://example.com/private)', source: 'Example source' });
+		assert.strictEqual(model.history.length, 0);
+		assert.strictEqual(historyChanges, 0);
+
+		survivingDuplicate.close();
+		assert.strictEqual(model.history.length, 1);
+		assert.deepStrictEqual(model.history[0], {
+			severity: Severity.Warning,
+			message: 'Read the docs',
+			source: 'Example source',
+			dismissedAt: model.history[0].dismissedAt
+		});
+		assert.deepStrictEqual(Object.keys(model.history[0]).sort(), ['dismissedAt', 'message', 'severity', 'source']);
+		assert.strictEqual(model.history[0].message.includes('https://'), false);
+
+		first.close(); // stale/repeated handles must not archive again
+		assert.strictEqual(model.history.length, 1);
+
+		for (let index = 0; index < 55; index++) {
+			model.addNotification({ severity: Severity.Info, message: `History ${index}` }).close();
+		}
+		assert.strictEqual(model.history.length, 50);
+		assert.strictEqual(model.history[0].message, 'History 54');
+		assert.strictEqual(model.history.at(-1)?.message, 'History 5');
+
+		const changesBeforeClear = historyChanges;
+		model.clearHistory();
+		assert.strictEqual(model.history.length, 0);
+		assert.strictEqual(historyChanges, changesBeforeClear + 1);
+		model.clearHistory();
+		assert.strictEqual(historyChanges, changesBeforeClear + 1);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

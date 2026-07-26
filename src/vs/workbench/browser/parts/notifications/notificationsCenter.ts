@@ -18,7 +18,7 @@ import { $, Dimension, isAncestorOfActiveElement } from '../../../../base/browse
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { localize } from '../../../../nls.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { ClearAllNotificationsAction, ConfigureDoNotDisturbAction, ConfigureNotificationsPositionAction, ToggleDoNotDisturbBySourceAction, HideNotificationsCenterAction, ToggleDoNotDisturbAction, hideIcon, hideUpIcon } from './notificationsActions.js';
+import { ClearAllNotificationsAction, ConfigureDoNotDisturbAction, ConfigureNotificationsPositionAction, ToggleDoNotDisturbBySourceAction, HideNotificationsCenterAction, ShowNotificationHistoryAction, ToggleDoNotDisturbAction, hideIcon, hideUpIcon } from './notificationsActions.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -282,6 +282,9 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 		this.clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
 		notificationsToolBar.push(this.clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.clearAllAction) });
+
+		const showHistoryAction = this._register(this.instantiationService.createInstance(ShowNotificationHistoryAction, ShowNotificationHistoryAction.ID, ShowNotificationHistoryAction.LABEL));
+		notificationsToolBar.push(showHistoryAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(showHistoryAction) });
 
 		this.configureDoNotDisturbAction = this._register(this.instantiationService.createInstance(ConfigureDoNotDisturbAction, ConfigureDoNotDisturbAction.ID, ConfigureDoNotDisturbAction.LABEL));
 		notificationsToolBar.push(this.configureDoNotDisturbAction, { icon: true, label: false });

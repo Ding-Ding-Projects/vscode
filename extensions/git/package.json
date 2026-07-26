@@ -107,6 +107,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.openInDesktopMaterial",
+        "title": "%command.openInDesktopMaterial%",
+        "category": "Git",
+        "enablement": "config.git.enabled && gitOpenRepositoryCount != 0 && !operationInProgress"
+      },
+      {
         "command": "git.reopenClosedRepositories",
         "title": "%command.reopenClosedRepositories%",
         "icon": "$(repo)",
@@ -1999,6 +2005,11 @@
           "when": "scmProvider == git"
         },
         {
+          "command": "git.openInDesktopMaterial",
+          "group": "3_footer@1",
+          "when": "scmProvider == git"
+        },
+        {
           "command": "git.showOutput",
           "group": "3_footer",
           "when": "scmProvider == git"
@@ -2075,6 +2086,11 @@
         {
           "submenu": "git.worktrees",
           "group": "2_main@8",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.openInDesktopMaterial",
+          "group": "3_footer@1",
           "when": "scmProvider == git"
         },
         {
@@ -3300,6 +3316,15 @@
             "array"
           ],
           "markdownDescription": "%config.path%",
+          "default": null,
+          "scope": "machine"
+        },
+        "git.desktopMaterial.path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "markdownDescription": "%config.desktopMaterial.path%",
           "default": null,
           "scope": "machine"
         },

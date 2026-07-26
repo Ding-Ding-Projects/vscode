@@ -30,7 +30,7 @@ export class SurveyService implements ISurveyService {
 	readonly _serviceBrand: undefined;
 
 	private debounceTimeout: ReturnType<typeof setTimeout> | undefined;
-	private readonly inactiveTimeout: ReturnType<typeof setTimeout>;
+	private readonly inactiveTimeout: ReturnType<typeof setTimeout> | undefined;
 	private lastSource: string | null = null;
 	private lastLanguageId: string | null = null;
 	private readonly sessionSeed: number;
@@ -42,22 +42,30 @@ export class SurveyService implements ISurveyService {
 	) {
 		this.sessionSeed = Math.random();
 
-		// Inactive survey check only runs once
-		this.inactiveTimeout = setTimeout(async () => {
-			await this.updateUsageData(false);
-			const eligible = await this.checkInactiveUserHeuristic();
-			if (eligible) {
-				this.promptSurvey('churn');
-			}
-		}, INACTIVE_TIMEOUT);
+		if (this.surveysEnabled) {
+			// Inactive survey check only runs once
+			this.inactiveTimeout = setTimeout(async () => {
+				await this.updateUsageData(false);
+				const eligible = await this.checkInactiveUserHeuristic();
+				if (eligible) {
+					this.promptSurvey('churn');
+				}
+			}, INACTIVE_TIMEOUT);
+		}
 	}
 
 	dispose(): void {
-		clearTimeout(this.inactiveTimeout);
+		if (this.inactiveTimeout) {
+			clearTimeout(this.inactiveTimeout);
+		}
 		clearTimeout(this.debounceTimeout);
 	}
 
 	public async signalUsage(source: string, languageId?: string): Promise<void> {
+		if (!this.surveysEnabled) {
+			return;
+		}
+
 		await this.updateUsageData(true);
 		this.lastSource = source;
 		if (languageId) {
@@ -76,6 +84,10 @@ export class SurveyService implements ISurveyService {
 	}
 
 	public async checkInactiveUserHeuristic(): Promise<boolean> {
+		if (!this.surveysEnabled) {
+			return false;
+		}
+
 		const usageData = await this.getUsageData();
 		const nextSurveyDate = await this.getNextSurveyDate();
 
@@ -97,6 +109,10 @@ export class SurveyService implements ISurveyService {
 	}
 
 	private async checkEligibility(): Promise<boolean> {
+		if (!this.surveysEnabled) {
+			return false;
+		}
+
 		const usageData = await this.getUsageData();
 		const nextSurveyDate = await this.getNextSurveyDate();
 
@@ -161,6 +177,10 @@ export class SurveyService implements ISurveyService {
 	}
 
 	private async promptSurvey(surveyType: 'churn' | 'usage'): Promise<void> {
+		if (!this.surveysEnabled) {
+			return;
+		}
+
 		const usage = await this.getUsageData();
 		const source = this.lastSource || '';
 		const language = this.lastLanguageId || '';
@@ -222,5 +242,9 @@ export class SurveyService implements ISurveyService {
 				await this.updateNextSurveyDate(DAYS_LATER);
 			}
 		});
+	}
+
+	private get surveysEnabled(): boolean {
+		return vscode.workspace.getConfiguration('github.copilot.chat').get<boolean>('surveys.enabled', false);
 	}
 }

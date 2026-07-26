@@ -45,6 +45,9 @@ import { SearchFindInput } from './searchFindInput.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { NotebookFindScopeType } from '../../notebook/common/notebookCommon.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWorkerService.js';
+import { SearchRegexBuilder } from './regexBuilder.js';
 
 /** Specified in searchview.css */
 const SingleLineInputHeight = 26;
@@ -176,11 +179,15 @@ export class SearchWidget extends Widget {
 	private readonly _onDidToggleContext = this._register(new Emitter<void>());
 	readonly onDidToggleContext: Event<void> = this._onDidToggleContext.event;
 
+	private readonly _onDidRegexBuilderSearchOptionsChange = this._register(new Emitter<void>());
+	readonly onDidRegexBuilderSearchOptionsChange: Event<void> = this._onDidRegexBuilderSearchOptionsChange.event;
+
 	private showContextToggle!: Toggle;
 	public contextLinesInput!: InputBox;
 
 	private _notebookFilters: NotebookFindFilters;
 	private readonly _toggleReplaceButtonListener: MutableDisposable<IDisposable>;
+	private regexBuilder: SearchRegexBuilder | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -194,6 +201,8 @@ export class SearchWidget extends Widget {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWebWorkerService private readonly webWorkerService: IWebWorkerService,
 	) {
 		super();
 		this.replaceActive = Constants.SearchContext.ReplaceActiveKey.bindTo(this.contextKeyService);
@@ -412,6 +421,7 @@ export class SearchWidget extends Widget {
 
 		this.renderSearchInput(this.domNode, options);
 		this.renderReplaceInput(this.domNode, options);
+		this.renderRegexBuilder(this.domNode);
 	}
 
 	private updateAccessibilitySupport(): void {
@@ -592,6 +602,47 @@ export class SearchWidget extends Widget {
 		this._register(this.replaceInput.onPreserveCaseKeyDown((keyboardEvent: IKeyboardEvent) => this.onPreserveCaseKeyDown(keyboardEvent)));
 	}
 
+	private renderRegexBuilder(parent: HTMLElement): void {
+		if (!this.searchInput) {
+			return;
+		}
+
+		this.regexBuilder = this._register(new SearchRegexBuilder(
+			parent,
+			{
+				onQueryChange: query => this.searchInput?.setValue(query),
+				onSearchOptionsChange: options => {
+					this.searchInput?.setRegex(options.isRegex);
+					this.searchInput?.setCaseSensitive(options.isCaseSensitive);
+					this.searchInput?.setWholeWords(options.isWholeWords);
+					this._onDidRegexBuilderSearchOptionsChange.fire();
+				},
+				onSubmitSearch: () => { void this.submitSearch(); },
+				focusSearchInput: () => this.searchInput?.focus(),
+			},
+			this.clipboardServce,
+			this.notificationService,
+			this.webWorkerService,
+		));
+		this.searchInput.setRegexBuilderToggle(this.regexBuilder.toggleControl);
+		this._register(this.regexBuilder.onToggleControlKeyDown(keyboardEvent => this.onRegexBuilderActionKeyDown(keyboardEvent)));
+		this._register(this.regexBuilder.onDidChangeHeight(() => this._onDidHeightChange.fire()));
+		this._register(this.searchInput.onDidSearchOptionChange(() => this.syncRegexBuilderFromSearch()));
+		this.syncRegexBuilderFromSearch();
+	}
+
+	private syncRegexBuilderFromSearch(): void {
+		if (!this.searchInput || !this.regexBuilder) {
+			return;
+		}
+		this.regexBuilder.setSearchState({
+			query: this.searchInput.getValue(),
+			isRegex: this.searchInput.getRegex(),
+			isCaseSensitive: this.searchInput.getCaseSensitive(),
+			isWholeWords: this.searchInput.getWholeWords(),
+		});
+	}
+
 	triggerReplaceAll(): Promise<void> {
 		this._onReplaceAll.fire();
 		return Promise.resolve();
@@ -650,6 +701,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private onSearchInputChanged(): void {
+		this.syncRegexBuilderFromSearch();
 		this.searchInput?.clearMessage();
 		this.setReplaceAllActionState(false);
 
@@ -749,11 +801,27 @@ export class SearchWidget extends Widget {
 	}
 
 	private onRegexKeyDown(keyboardEvent: IKeyboardEvent) {
-		if (keyboardEvent.equals(KeyCode.Tab)) {
-			if (this.isReplaceShown()) {
-				this.replaceInput?.focusOnPreserve();
+		if (keyboardEvent.equals(KeyCode.Tab) && this.isReplaceShown()) {
+			if (this.searchInput) {
+				this.searchInput.focusRegexBuilderToggle();
 				keyboardEvent.preventDefault();
 			}
+		}
+	}
+
+	private onRegexBuilderActionKeyDown(keyboardEvent: IKeyboardEvent): void {
+		if (keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab) && this.isReplaceShown()) {
+			this.focusRegexAction();
+			keyboardEvent.preventDefault();
+		} else if (keyboardEvent.equals(KeyCode.Tab)) {
+			if (this.regexBuilder?.visible) {
+				this.regexBuilder.focus();
+			} else if (this.isReplaceShown()) {
+				this.replaceInput?.focusOnPreserve();
+			} else {
+				return;
+			}
+			keyboardEvent.preventDefault();
 		}
 	}
 

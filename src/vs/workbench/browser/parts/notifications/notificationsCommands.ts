@@ -13,7 +13,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { NotificationFocusedContext, NotificationsCenterVisibleContext, NotificationsToastsVisibleContext } from '../../../common/contextkeys.js';
-import { INotificationService, INotificationSourceFilter, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, INotificationSourceFilter, NotificationsFilter, withSeverityPrefix } from '../../../../platform/notification/common/notification.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -43,6 +43,8 @@ export const ACCEPT_PRIMARY_ACTION_NOTIFICATION = 'notification.acceptPrimaryAct
 const TOGGLE_NOTIFICATION = 'notification.toggle';
 export const CLEAR_NOTIFICATION = 'notification.clear';
 export const CLEAR_ALL_NOTIFICATIONS = 'notifications.clearAll';
+export const SHOW_NOTIFICATION_HISTORY = 'notifications.showHistory';
+export const CLEAR_NOTIFICATION_HISTORY = 'notifications.clearHistory';
 export const TOGGLE_DO_NOT_DISTURB_MODE = 'notifications.toggleDoNotDisturbMode';
 export const TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE = 'notifications.toggleDoNotDisturbModeBySource';
 
@@ -272,6 +274,24 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Clear All Notifications
 	CommandsRegistry.registerCommand(CLEAR_ALL_NOTIFICATIONS, () => center.clearAll());
 
+	// Show bounded, session-only history without reviving old actions or links.
+	CommandsRegistry.registerCommand(SHOW_NOTIFICATION_HISTORY, async accessor => {
+		const quickInputService = accessor.get(IQuickInputService);
+		const history: IQuickPickItem[] = model.history.map(entry => ({
+			label: withSeverityPrefix(entry.message.replace(/\s+/g, ' ').trim(), entry.severity),
+			description: entry.source,
+			detail: localize('notificationHistory.removedAt', "Removed {0}", new Date(entry.dismissedAt).toLocaleTimeString())
+		}));
+
+		const items: IQuickPickItem[] = history.length ? history : [{ label: localize('notificationHistory.empty', "No removed notifications in this window") }];
+		await quickInputService.pick(items, {
+			title: localize('notificationHistory.title', "Notification History"),
+			placeHolder: localize('notificationHistory.placeholder', "Review recently removed notifications (session only)")
+		});
+	});
+
+	CommandsRegistry.registerCommand(CLEAR_NOTIFICATION_HISTORY, () => model.clearHistory());
+
 	// Toggle Do Not Disturb Mode
 	CommandsRegistry.registerCommand(TOGGLE_DO_NOT_DISTURB_MODE, accessor => {
 		const notificationService = accessor.get(INotificationService);
@@ -322,6 +342,8 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: SHOW_NOTIFICATIONS_CENTER, title: localize2('showNotifications', 'Show Notifications'), category } });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: HIDE_NOTIFICATIONS_CENTER, title: localize2('hideNotifications', 'Hide Notifications'), category }, when: NotificationsCenterVisibleContext });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLEAR_ALL_NOTIFICATIONS, title: localize2('clearAllNotifications', 'Clear All Notifications'), category } });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: SHOW_NOTIFICATION_HISTORY, title: localize2('showNotificationHistory', 'Show Notification History'), category } });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLEAR_NOTIFICATION_HISTORY, title: localize2('clearNotificationHistory', 'Clear Notification History'), category } });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: ACCEPT_PRIMARY_ACTION_NOTIFICATION, title: localize2('acceptNotificationPrimaryAction', 'Accept Notification Primary Action'), category } });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: TOGGLE_DO_NOT_DISTURB_MODE, title: localize2('toggleDoNotDisturbMode', 'Toggle Do Not Disturb Mode'), category } });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE, title: localize2('toggleDoNotDisturbModeBySource', 'Toggle Do Not Disturb Mode By Source...'), category } });

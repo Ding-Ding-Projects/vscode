@@ -20,6 +20,7 @@ export interface IDialogHandle {
 }
 
 export interface IDialogsModel {
+	readonly onDidAddDialog: Event<void>;
 
 	readonly onWillShowDialog: Event<void>;
 	readonly onDidShowDialog: Event<void>;
@@ -33,6 +34,9 @@ export class DialogsModel extends Disposable implements IDialogsModel {
 
 	readonly dialogs: IDialogViewItem[] = [];
 
+	private readonly _onDidAddDialog = this._register(new Emitter<void>());
+	readonly onDidAddDialog = this._onDidAddDialog.event;
+
 	private readonly _onWillShowDialog = this._register(new Emitter<void>());
 	readonly onWillShowDialog = this._onWillShowDialog.event;
 
@@ -41,6 +45,7 @@ export class DialogsModel extends Disposable implements IDialogsModel {
 
 	show(dialog: IDialogArgs): IDialogHandle {
 		const promise = new DeferredPromise<IDialogResult | undefined>();
+		const modal = dialog.modal !== false;
 
 		const item: IDialogViewItem = {
 			args: dialog,
@@ -51,12 +56,17 @@ export class DialogsModel extends Disposable implements IDialogsModel {
 				} else {
 					promise.complete(result);
 				}
-				this._onDidShowDialog.fire();
+				if (modal) {
+					this._onDidShowDialog.fire();
+				}
 			}
 		};
 
 		this.dialogs.push(item);
-		this._onWillShowDialog.fire();
+		if (modal) {
+			this._onWillShowDialog.fire();
+		}
+		this._onDidAddDialog.fire();
 
 		return {
 			item,

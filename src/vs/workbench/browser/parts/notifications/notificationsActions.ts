@@ -7,7 +7,7 @@ import './media/notificationsActions.css';
 import { INotificationViewItem, NotificationsPosition } from '../../../common/notifications.js';
 import { localize } from '../../../../nls.js';
 import { Action } from '../../../../base/common/actions.js';
-import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, TOGGLE_DO_NOT_DISTURB_MODE, TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE } from './notificationsCommands.js';
+import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATION_HISTORY, TOGGLE_DO_NOT_DISTURB_MODE, TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE } from './notificationsCommands.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -16,6 +16,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const clearIcon = registerIcon('notifications-clear', Codicon.close, localize('clearIcon', 'Icon for the clear action in notifications.'));
 const clearAllIcon = registerIcon('notifications-clear-all', Codicon.clearAll, localize('clearAllIcon', 'Icon for the clear all action in notifications.'));
+const historyIcon = registerIcon('notifications-history', Codicon.history, localize('historyIcon', 'Icon for notification history.'));
 export const hideIcon = registerIcon('notifications-hide', Codicon.chevronDown, localize('hideIcon', 'Icon for the hide action in notifications.'));
 export const hideUpIcon = registerIcon('notifications-hide-up', Codicon.chevronUp, localize('hideUpIcon', 'Icon for the hide action in notifications when positioned at the top.'));
 const expandIcon = registerIcon('notifications-expand', Codicon.chevronUp, localize('expandIcon', 'Icon for the expand action in notifications.'));
@@ -67,6 +68,24 @@ export class ClearAllNotificationsAction extends Action {
 
 	override async run(): Promise<void> {
 		this.commandService.executeCommand(CLEAR_ALL_NOTIFICATIONS);
+	}
+}
+
+export class ShowNotificationHistoryAction extends Action {
+
+	static readonly ID = SHOW_NOTIFICATION_HISTORY;
+	static readonly LABEL = localize('showNotificationHistory', "Show Notification History");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private readonly commandService: ICommandService
+	) {
+		super(id, label, ThemeIcon.asClassName(historyIcon));
+	}
+
+	override async run(): Promise<void> {
+		await this.commandService.executeCommand(SHOW_NOTIFICATION_HISTORY);
 	}
 }
 

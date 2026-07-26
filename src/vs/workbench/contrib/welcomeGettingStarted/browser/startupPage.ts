@@ -120,6 +120,10 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return;
 		}
 
+		if (this.environmentService.skipWelcome) {
+			return;
+		}
+
 		// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
 		if (
 			this.productService.enableTelemetry

@@ -41,7 +41,7 @@ export class MobileDialogHandlerContribution extends Disposable implements IWork
 		this.impl = new Lazy(() => instantiationService.createInstance(MobileAwareDialogHandler));
 		this.model = (this.dialogService as DialogService).model;
 
-		this._register(this.model.onWillShowDialog(() => {
+		this._register(this.model.onDidAddDialog(() => {
 			if (!this.currentDialog) {
 				this.processDialogs();
 			}

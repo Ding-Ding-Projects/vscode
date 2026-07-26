@@ -19,6 +19,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { Lazy } from '../../../../base/common/lazy.js';
 import { createNativeAboutDialogDetails } from '../../../../platform/dialogs/electron-browser/dialog.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { NotificationDialogHandler } from '../../../browser/parts/dialogs/notificationDialogHandler.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -26,6 +27,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 
 	private nativeImpl: Lazy<IDialogHandler>;
 	private browserImpl: Lazy<IDialogHandler>;
+	private notificationImpl: Lazy<IDialogHandler>;
 
 	private model: IDialogsModel;
 	private currentDialog: IDialogViewItem | undefined;
@@ -44,10 +46,11 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 
 		this.browserImpl = new Lazy(() => instantiationService.createInstance(BrowserDialogHandler));
 		this.nativeImpl = new Lazy(() => new NativeDialogHandler(logService, nativeHostService, clipboardService));
+		this.notificationImpl = new Lazy(() => instantiationService.createInstance(NotificationDialogHandler));
 
 		this.model = (this.dialogService as DialogService).model;
 
-		this._register(this.model.onWillShowDialog(() => {
+		this._register(this.model.onDidAddDialog(() => {
 			if (!this.currentDialog) {
 				this.processDialogs();
 			}
@@ -66,7 +69,8 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 				// Confirm
 				if (this.currentDialog.args.confirmArgs) {
 					const args = this.currentDialog.args.confirmArgs;
-					result = (this.useCustomDialog || args?.confirmation.custom) ?
+					result = this.useNotificationDialog ?
+						await this.notificationImpl.value.confirm(args.confirmation) : (this.useCustomDialog || args?.confirmation.custom) ?
 						await this.browserImpl.value.confirm(args.confirmation) :
 						await this.nativeImpl.value.confirm(args.confirmation);
 				}
@@ -74,13 +78,16 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 				// Input (custom only)
 				else if (this.currentDialog.args.inputArgs) {
 					const args = this.currentDialog.args.inputArgs;
-					result = await this.browserImpl.value.input(args.input);
+					result = this.useNotificationDialog ?
+						await this.notificationImpl.value.input(args.input) :
+						await this.browserImpl.value.input(args.input);
 				}
 
 				// Prompt
 				else if (this.currentDialog.args.promptArgs) {
 					const args = this.currentDialog.args.promptArgs;
-					result = (this.useCustomDialog || args?.prompt.custom) ?
+					result = this.useNotificationDialog ?
+						await this.notificationImpl.value.prompt(args.prompt) : (this.useCustomDialog || args?.prompt.custom) ?
 						await this.browserImpl.value.prompt(args.prompt) :
 						await this.nativeImpl.value.prompt(args.prompt);
 				}
@@ -89,7 +96,9 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 				else {
 					const aboutDialogDetails = createNativeAboutDialogDetails(this.productService, await this.nativeHostService.getOSProperties());
 
-					if (this.useCustomDialog) {
+					if (this.useNotificationDialog) {
+						await this.notificationImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
+					} else if (this.useCustomDialog) {
 						await this.browserImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
 					} else {
 						await this.nativeImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
@@ -108,6 +117,12 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		return this.configurationService.getValue('window.dialogStyle') === 'custom' ||
 			// Use the custom dialog while driven so that the driver can interact with it
 			!!this.environmentService.enableSmokeTestDriver;
+	}
+
+	private get useNotificationDialog(): boolean {
+		return this.configurationService.getValue('window.dialogStyle') === 'notification' &&
+			// Keep the existing custom surface available to the smoke-test driver.
+			!this.environmentService.enableSmokeTestDriver;
 	}
 }
 

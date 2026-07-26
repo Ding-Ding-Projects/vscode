@@ -7,6 +7,19 @@
 
 This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Studio Code](https://code.visualstudio.com) product together with the community. Not only do we work on code and issues here, but we also publish our [roadmap](https://github.com/microsoft/vscode/wiki/Roadmap), [monthly iteration plans](https://github.com/microsoft/vscode/wiki/Iteration-Plans), and our [endgame plans](https://github.com/microsoft/vscode/wiki/Running-the-Endgame). This source code is available to everyone under the standard [MIT license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt).
 
+## Cafe Promenade fork features
+
+This fork adds an opt-in **Git: Open in Desktop Material** repository command, verified release-backed Desktop Material Cheap LFS pointers, an accessible Search regex builder, keyboard-first desktop decision notifications, and quiet first-run defaults. The upstream Git history is preserved; historical revisions that used Git LFS continue to require Git LFS.
+
+- [Desktop Material integration](docs/features/integrations/desktop-material.md)
+- [Desktop Material Cheap LFS migration](docs/features/repository-management/desktop-material-cheap-lfs.md)
+- [Search regex builder](docs/features/search/regex-builder.md)
+- [Keyboard-first dialog notifications](docs/features/workbench/keyboard-first-dialogs.md)
+- [Quiet workbench defaults](docs/features/workbench/quiet-defaults.md)
+- [Fork roadmap](ROADMAP.md)
+- [Current handoff and verification record](HANDOFF.md)
+- [Fork documentation index](docs/index.md)
+
 ## Visual Studio Code
 
 <p align="center">

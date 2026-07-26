@@ -1,5 +1,5 @@
 version desktop-material/cheap-lfs/v1
-release-tag assets
+release-tag desktop-material-cheap-lfs-v1
 asset-name 844e5164-c68d-448e-a5fd-d1cb6bc13173.sqlite
 size 1830912
 sha256 342dc8d93d5439e7fd8782f6e573f500d94bbb0f9d47f07e6fcf734b80c938cd

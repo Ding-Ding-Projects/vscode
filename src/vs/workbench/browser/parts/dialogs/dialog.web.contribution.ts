@@ -33,7 +33,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		this.impl = new Lazy(() => instantiationService.createInstance(BrowserDialogHandler));
 		this.model = (this.dialogService as DialogService).model;
 
-		this._register(this.model.onWillShowDialog(() => {
+		this._register(this.model.onDidAddDialog(() => {
 			if (!this.currentDialog) {
 				this.processDialogs();
 			}

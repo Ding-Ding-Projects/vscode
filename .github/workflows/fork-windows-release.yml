@@ -1,0 +1,501 @@
+name: Fork CI and Windows release
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-ci-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test_build:
+    name: Test and build Windows x64
+    runs-on: windows-2022
+    outputs:
+      installer_name: ${{ steps.package.outputs.installer_name }}
+      installer_sha256: ${{ steps.package.outputs.installer_sha256 }}
+      installer_size: ${{ steps.package.outputs.installer_size }}
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      GIT_LFS_SKIP_SMUDGE: "1"
+      npm_config_arch: x64
+      npm_config_foreground_scripts: "true"
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      VSCODE_ARCH: x64
+    steps:
+      - name: Checkout without Git LFS materialization
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          lfs: false
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm ci
+
+      - name: Verify Desktop Material Cheap LFS pointers
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $lfsFiles = @(git lfs ls-files --name-only)
+          if ($LASTEXITCODE -ne 0) {
+            throw "git lfs ls-files failed with exit code $LASTEXITCODE."
+          }
+          if ($lfsFiles.Count -ne 0) {
+            throw "Git LFS-tracked files remain at HEAD: $($lfsFiles -join ', ')"
+          }
+
+          $databaseFiles = @(Get-ChildItem -LiteralPath "extensions/copilot" -Recurse -File -Filter "*.sqlite")
+          if ($databaseFiles.Count -ne 97) {
+            throw "Expected 97 simulation cache database pointers, found $($databaseFiles.Count)."
+          }
+
+          $pointerRecords = @()
+          $assetNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+          $workspacePrefix = [System.IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).TrimEnd('\') + '\'
+          [long]$materializedBytes = 0
+          foreach ($databaseFile in $databaseFiles) {
+            $lines = @(Get-Content -LiteralPath $databaseFile.FullName)
+            $valid = $lines.Count -eq 5 `
+              -and $lines[0] -eq "version desktop-material/cheap-lfs/v1" `
+              -and $lines[1] -eq "release-tag desktop-material-cheap-lfs-v1" `
+              -and $lines[2] -match '^asset-name .+$' `
+              -and $lines[3] -match '^size [1-9][0-9]*$' `
+              -and $lines[4] -match '^sha256 [0-9a-f]{64}$'
+            if (-not $valid) {
+              throw "Invalid Desktop Material Cheap LFS pointer: $($databaseFile.FullName)"
+            }
+
+            $fullDatabasePath = [System.IO.Path]::GetFullPath($databaseFile.FullName)
+            if (-not $fullDatabasePath.StartsWith($workspacePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+              throw "Cheap LFS path escaped the checked-out workspace: $fullDatabasePath"
+            }
+            $relativePath = $fullDatabasePath.Substring($workspacePrefix.Length).Replace('\', '/')
+            $assetName = $lines[2].Substring('asset-name '.Length)
+            [long]$size = $lines[3].Substring('size '.Length)
+            $sha256 = $lines[4].Substring('sha256 '.Length)
+            if (-not $assetNames.Add($assetName)) {
+              throw "Duplicate Cheap LFS release asset name: $assetName"
+            }
+            $materializedBytes += $size
+            $pointerRecords += [pscustomobject]@{
+              RelativePath = $relativePath
+              AssetName = $assetName
+              Size = $size
+              Sha256 = $sha256
+            }
+          }
+
+          if ($materializedBytes -ne 272318464) {
+            throw "Expected 272318464 materialized bytes, found $materializedBytes."
+          }
+
+          # Pass paths as native argv. Piping PowerShell strings to `--stdin` on
+          # Windows appends CRLF, and Git can treat the CR as part of each path.
+          $attributeArguments = @('check-attr', 'filter', 'diff', 'merge', 'text', 'eol', '--') + @($pointerRecords.RelativePath)
+          $attributeLines = @(& git @attributeArguments)
+          if ($LASTEXITCODE -ne 0) {
+            throw "git check-attr failed with exit code $LASTEXITCODE."
+          }
+          $expectedAttributeLines = $pointerRecords.Count * 5
+          if ($attributeLines.Count -ne $expectedAttributeLines) {
+            throw "Expected $expectedAttributeLines Git attribute results, found $($attributeLines.Count)."
+          }
+          $unexpectedAttributes = @($attributeLines | Where-Object {
+            $_ -match ': (filter|diff|merge): (?!unspecified$)' `
+              -or $_ -match ': text: (?!auto$)' `
+              -or $_ -match ': eol: (?!lf$)'
+          })
+          if ($unexpectedAttributes.Count -ne 0) {
+            throw "Unexpected Git attributes apply to Cheap LFS paths: $($unexpectedAttributes -join ', ')"
+          }
+
+          $cheapLfsReleaseTag = 'desktop-material-cheap-lfs-v1'
+          $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$cheapLfsReleaseTag" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or -not $release) {
+            throw "The immutable Desktop Material Cheap LFS release could not be read."
+          }
+          if ([long]$release.id -ne 360122133 `
+            -or $release.tag_name -ne $cheapLfsReleaseTag `
+            -or $release.target_commitish -ne 'e4c61a474e160df1cb45a7f3438b7c3f9ecf72a9' `
+            -or $release.draft `
+            -or -not $release.prerelease `
+            -or $release.immutable -ne $true) {
+            throw "The Desktop Material Cheap LFS bucket must be the expected published immutable prerelease."
+          }
+
+          $releaseTagRef = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$cheapLfsReleaseTag" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 `
+            -or $releaseTagRef.ref -ne "refs/tags/$cheapLfsReleaseTag" `
+            -or $releaseTagRef.object.type -ne 'commit' `
+            -or $releaseTagRef.object.sha -ne 'e4c61a474e160df1cb45a7f3438b7c3f9ecf72a9') {
+            throw "The immutable Desktop Material Cheap LFS release tag does not point to the migration commit."
+          }
+
+          $releaseAssets = @($release.assets)
+          if ($releaseAssets.Count -ne 97) {
+            throw "Expected 97 release assets, found $($releaseAssets.Count)."
+          }
+          $assetsByName = @{}
+          foreach ($asset in $releaseAssets) {
+            if ($assetsByName.ContainsKey($asset.name)) {
+              throw "Duplicate asset in release response: $($asset.name)"
+            }
+            $assetsByName[$asset.name] = $asset
+          }
+
+          foreach ($pointer in $pointerRecords) {
+            $asset = $assetsByName[$pointer.AssetName]
+            if (-not $asset) {
+              throw "Missing release asset for $($pointer.RelativePath): $($pointer.AssetName)"
+            }
+            $expectedLabel = "cheap-lfs/v1 sha256=$($pointer.Sha256) commit=e4c61a474e160df1cb45a7f3438b7c3f9ecf72a9 path=$($pointer.RelativePath)"
+            if ($asset.state -ne 'uploaded' `
+              -or [long]$asset.size -ne $pointer.Size `
+              -or $asset.digest -ne "sha256:$($pointer.Sha256)" `
+              -or $asset.label -ne $expectedLabel) {
+              throw "Release metadata mismatch for $($pointer.RelativePath)."
+            }
+          }
+
+          Write-Host "Verified 97 Desktop Material Cheap LFS pointers, 97 release assets, 272318464 bytes, and zero Git LFS files at HEAD."
+
+      - name: Verify Desktop Material command contributions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $manifest = Get-Content -LiteralPath "extensions/git/package.json" -Raw | ConvertFrom-Json
+          $messages = Get-Content -LiteralPath "extensions/git/package.nls.json" -Raw | ConvertFrom-Json
+
+          $commands = @($manifest.contributes.commands | Where-Object { $_.command -eq "git.openInDesktopMaterial" })
+          if ($commands.Count -ne 1 -or $commands[0].title -ne "%command.openInDesktopMaterial%") {
+            throw "The Git: Open in Desktop Material command contribution is missing or invalid."
+          }
+
+          foreach ($menuId in @("scm/title", "scm/repository")) {
+            $menu = $manifest.contributes.menus.PSObject.Properties[$menuId].Value
+            if (-not @($menu | Where-Object { $_.command -eq "git.openInDesktopMaterial" })) {
+              throw "The Desktop Material command is missing from $menuId."
+            }
+          }
+
+          $setting = $manifest.contributes.configuration.properties.PSObject.Properties["git.desktopMaterial.path"].Value
+          if (-not $setting -or $setting.scope -ne "machine") {
+            throw "The machine-scoped git.desktopMaterial.path setting is missing."
+          }
+          if (-not $messages."command.openInDesktopMaterial" -or -not $messages."config.desktopMaterial.path") {
+            throw "Desktop Material package localization keys are missing."
+          }
+
+      - name: Lint Desktop Material integration
+        shell: pwsh
+        run: >-
+          npm exec -- eslint
+          extensions/git/src/commands.ts
+          extensions/git/src/desktopMaterial.ts
+          extensions/git/src/test/desktopMaterial.test.ts
+
+      - name: Compile Git extension
+        shell: pwsh
+        run: npm run gulp compile-extension:git
+
+      - name: Test Desktop Material integration
+        shell: pwsh
+        run: >-
+          node node_modules/mocha/bin/mocha
+          extensions/git/out/test/desktopMaterial.test.js
+          --ui tdd
+          --timeout 60000
+
+      - name: Lint fork workbench features
+        shell: pwsh
+        run: >-
+          npm exec -- eslint
+          extensions/copilot/src/platform/survey/vscode/surveyServiceImpl.ts
+          src/vs/platform/dialogs/common/dialogs.ts
+          src/vs/platform/update/common/update.config.contribution.ts
+          src/vs/sessions/browser/parts/dialogs/mobileDialog.web.contribution.ts
+          src/vs/workbench/browser/parts/dialogs/dialog.web.contribution.ts
+          src/vs/workbench/browser/parts/dialogs/notificationDialogHandler.ts
+          src/vs/workbench/browser/parts/notifications/notificationsActions.ts
+          src/vs/workbench/browser/parts/notifications/notificationsCenter.ts
+          src/vs/workbench/browser/parts/notifications/notificationsCommands.ts
+          src/vs/workbench/browser/workbench.contribution.ts
+          src/vs/workbench/common/dialogs.ts
+          src/vs/workbench/common/notifications.ts
+          src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts
+          src/vs/workbench/contrib/extensions/browser/extensions.contribution.ts
+          src/vs/workbench/contrib/search/browser/regexBuilder.ts
+          src/vs/workbench/contrib/search/browser/searchFindInput.ts
+          src/vs/workbench/contrib/search/browser/searchView.ts
+          src/vs/workbench/contrib/search/browser/searchWidget.ts
+          src/vs/workbench/contrib/search/common/regexBuilder.ts
+          src/vs/workbench/contrib/search/common/regexBuilderMain.ts
+          src/vs/workbench/contrib/search/test/browser/regexBuilder.test.ts
+          src/vs/workbench/contrib/search/test/common/regexBuilder.test.ts
+          src/vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.contribution.ts
+          src/vs/workbench/contrib/welcomeGettingStarted/browser/startupPage.ts
+          src/vs/workbench/contrib/workspace/browser/workspace.contribution.ts
+          src/vs/workbench/electron-browser/desktop.contribution.ts
+          src/vs/workbench/electron-browser/parts/dialogs/dialog.contribution.ts
+          src/vs/workbench/services/assignment/common/assignmentService.ts
+          src/vs/workbench/services/dialogs/common/dialogService.ts
+          src/vs/workbench/test/browser/parts/dialogs/notificationDialogHandler.test.ts
+          src/vs/workbench/test/common/notifications.test.ts
+
+      - name: Lint fork workbench styles
+        shell: pwsh
+        run: npm run stylelint -- src/vs/workbench/contrib/search/browser/media/searchview.css
+
+      - name: Verify fork defaults and safety guards
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/verify-fork-defaults.ps1
+
+      - name: Compile fork workbench features
+        shell: pwsh
+        run: npm run gulp compile
+
+      - name: Test fork workbench features
+        shell: pwsh
+        run: >-
+          node test/unit/browser/index.js
+          --browser chromium-msedge
+          --run src/vs/workbench/test/browser/parts/dialogs/notificationDialogHandler.test.ts
+          --run src/vs/workbench/test/common/notifications.test.ts
+          --run src/vs/workbench/contrib/search/test/browser/regexBuilder.test.ts
+          --run src/vs/workbench/contrib/search/test/common/regexBuilder.test.ts
+
+      - name: Compile bundled Copilot survey guard
+        shell: pwsh
+        working-directory: extensions/copilot
+        run: node .esbuild.mts --dev
+
+      - name: Download pinned built-in extensions
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node build/lib/builtInExtensions.ts
+
+      - name: Build Windows x64 user installer
+        id: package
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $sdkRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+          $signTool = Get-ChildItem -LiteralPath $sdkRoot -Recurse -File -Filter "signtool.exe" |
+            Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $signTool) {
+            throw "A Windows x64 signtool.exe was not found under $sdkRoot."
+          }
+          $env:PATH = "$($signTool.DirectoryName);$env:PATH"
+
+          npm run gulp vscode-win32-x64-min
+          if ($LASTEXITCODE -ne 0) {
+            throw "The Windows x64 application build failed with exit code $LASTEXITCODE."
+          }
+
+          npm run gulp vscode-win32-x64-user-setup
+          if ($LASTEXITCODE -ne 0) {
+            throw "The Windows x64 user installer build failed with exit code $LASTEXITCODE."
+          }
+
+          $sourcePath = Join-Path $env:GITHUB_WORKSPACE ".build\win32-x64\user-setup\VSCodeSetup.exe"
+          if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+            throw "The expected user installer was not produced at $sourcePath."
+          }
+
+          $installerStream = [System.IO.File]::OpenRead($sourcePath)
+          try {
+            $firstByte = $installerStream.ReadByte()
+            $secondByte = $installerStream.ReadByte()
+          }
+          finally {
+            $installerStream.Dispose()
+          }
+          if ($firstByte -ne 0x4d -or $secondByte -ne 0x5a) {
+            throw "The generated installer is not a Windows PE executable."
+          }
+
+          $shortSha = $env:GITHUB_SHA.Substring(0, 12)
+          $artifactDirectory = Join-Path $env:GITHUB_WORKSPACE "artifacts"
+          New-Item -ItemType Directory -Path $artifactDirectory -Force | Out-Null
+          $installerName = "CodeOSS-DesktopMaterial-UserSetup-x64-$shortSha-run-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-unsigned.exe"
+          $installerPath = Join-Path $artifactDirectory $installerName
+          Move-Item -LiteralPath $sourcePath -Destination $installerPath
+
+          $installerHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $installerSize = (Get-Item -LiteralPath $installerPath).Length
+          "installer_path=$installerPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "installer_name=$installerName" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "installer_sha256=$installerHash" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "installer_size=$installerSize" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Store immutable installer artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: windows-user-setup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.package.outputs.installer_path }}
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish one Windows x64 release
+    needs: test_build
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download tested installer
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: windows-user-setup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release
+
+      - name: Verify downloaded installer
+        shell: pwsh
+        env:
+          EXPECTED_NAME: ${{ needs.test_build.outputs.installer_name }}
+          EXPECTED_SHA256: ${{ needs.test_build.outputs.installer_sha256 }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installerPath = Join-Path $env:GITHUB_WORKSPACE "release/$env:EXPECTED_NAME"
+          if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
+            throw "The tested installer artifact is missing: $installerPath"
+          }
+
+          $actualHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $env:EXPECTED_SHA256) {
+            throw "The downloaded installer hash does not match the tested artifact."
+          }
+
+      - name: Publish one immutable release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INSTALLER_NAME: ${{ needs.test_build.outputs.installer_name }}
+          INSTALLER_SHA256: ${{ needs.test_build.outputs.installer_sha256 }}
+          INSTALLER_SIZE: ${{ needs.test_build.outputs.installer_size }}
+          RELEASE_TAG: fork-windows-${{ github.run_id }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installerPath = Join-Path $env:GITHUB_WORKSPACE "release/$env:INSTALLER_NAME"
+          $releaseTitle = "Code OSS Windows x64 ($env:GITHUB_SHA)"
+          $apiRoot = $env:GITHUB_API_URL.TrimEnd('/')
+
+          function Get-GitHubJson {
+            param(
+              [Parameter(Mandatory = $true)][string]$Uri,
+              [switch]$AllowNotFound
+            )
+
+            # Probe the HTTP status separately so a missing release is the only
+            # failure allowed through the exactly-once preflight.
+            $probe = @(& gh api --include --silent -H 'X-GitHub-Api-Version: 2026-03-10' $Uri 2>&1)
+            $probeExitCode = $LASTEXITCODE
+            $statusLine = $probe | Where-Object { $_ -match '^HTTP/\S+ [0-9]{3}' } | Select-Object -First 1
+            if ($probeExitCode -ne 0) {
+              if ($AllowNotFound -and $statusLine -match '^HTTP/\S+ 404(?:\s|$)') {
+                return $null
+              }
+              throw "GitHub API probe failed: $statusLine"
+            }
+
+            $json = @(& gh api -H 'X-GitHub-Api-Version: 2026-03-10' $Uri)
+            if ($LASTEXITCODE -ne 0) {
+              throw "GitHub API read failed with exit code $LASTEXITCODE."
+            }
+            return ($json -join [Environment]::NewLine) | ConvertFrom-Json
+          }
+
+          function Assert-PublishedRelease {
+            param(
+              [Parameter(Mandatory = $true)][object]$Release,
+              [Parameter(Mandatory = $true)][string]$Context
+            )
+
+            if ($Release.tag_name -ne $env:RELEASE_TAG `
+              -or $Release.target_commitish -ne $env:GITHUB_SHA `
+              -or $Release.draft `
+              -or $Release.prerelease `
+              -or $Release.immutable -ne $true) {
+              throw "$Context release metadata does not match the immutable release contract."
+            }
+
+            $assets = @($Release.assets)
+            if ($assets.Count -ne 1) {
+              throw "$Context release must contain exactly one asset; found $($assets.Count)."
+            }
+            $asset = $assets[0]
+            if ($asset.name -ne $env:INSTALLER_NAME `
+              -or $asset.state -ne 'uploaded' `
+              -or [long]$asset.size -ne [long]$env:INSTALLER_SIZE `
+              -or $asset.digest -ne "sha256:$env:INSTALLER_SHA256") {
+              throw "$Context release asset does not match the tested installer."
+            }
+
+            $encodedTag = [Uri]::EscapeDataString($env:RELEASE_TAG)
+            $tagRef = Get-GitHubJson -Uri "$apiRoot/repos/$env:GITHUB_REPOSITORY/git/ref/tags/$encodedTag"
+            if ($tagRef.ref -ne "refs/tags/$env:RELEASE_TAG" `
+              -or $tagRef.object.type -ne 'commit' `
+              -or $tagRef.object.sha -ne $env:GITHUB_SHA) {
+              throw "$Context release tag does not point directly to the tested commit."
+            }
+          }
+
+          $encodedReleaseTag = [Uri]::EscapeDataString($env:RELEASE_TAG)
+          $releaseUri = "$apiRoot/repos/$env:GITHUB_REPOSITORY/releases/tags/$encodedReleaseTag"
+          $existingRelease = Get-GitHubJson -Uri $releaseUri -AllowNotFound
+          if ($existingRelease) {
+            Assert-PublishedRelease -Release $existingRelease -Context 'Existing'
+            throw "Release $env:RELEASE_TAG already exists and exactly matches this run; refusing to publish a second release."
+          }
+
+          $releaseNotes = @"
+          Automated fork build from $env:GITHUB_REF.
+
+          Commit: $env:GITHUB_SHA
+          Workflow run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID
+          Verification: Desktop Material integration, regex builder, keyboard-first notifications, quiet defaults, and notification history lint/compile/focused tests passed; Cheap LFS pointers were validated; the Windows x64 application and user installer built successfully.
+          Installer SHA-256: $env:INSTALLER_SHA256
+          Signing: unsigned fork build (Windows may show a publisher warning).
+          "@
+
+          # With repository release immutability enabled, GitHub CLI creates a
+          # draft, uploads the asset, and only then publishes the release.
+          gh release create $env:RELEASE_TAG $installerPath `
+            --repo $env:GITHUB_REPOSITORY `
+            --target $env:GITHUB_SHA `
+            --title $releaseTitle `
+            --notes $releaseNotes `
+            --latest=false
+          if ($LASTEXITCODE -ne 0) {
+            throw "GitHub Release creation failed with exit code $LASTEXITCODE."
+          }
+
+          $publishedRelease = Get-GitHubJson -Uri $releaseUri
+          Assert-PublishedRelease -Release $publishedRelease -Context 'Published'
+          Write-Host "Verified one immutable release, one exact installer asset, and tag $env:RELEASE_TAG at $env:GITHUB_SHA."
+
+          # Releases created with GITHUB_TOKEN do not start another push-triggered workflow.

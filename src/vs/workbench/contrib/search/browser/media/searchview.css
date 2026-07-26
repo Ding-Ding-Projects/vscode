@@ -52,6 +52,188 @@
 	margin-left: 18px;
 }
 
+.search-view .search-regex-builder {
+	box-sizing: border-box;
+	max-height: min(52vh, 480px);
+	margin: var(--vscode-spacing-size60) var(--vscode-spacing-sizeNone) var(--vscode-spacing-sizeNone) var(--vscode-spacing-size200);
+	padding: var(--vscode-spacing-size100);
+	overflow: auto;
+	color: var(--vscode-foreground);
+	background: var(--vscode-sideBar-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.search-view .search-regex-builder-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size80);
+}
+
+.search-view .search-regex-builder-heading {
+	margin: var(--vscode-spacing-sizeNone);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.search-view .search-regex-builder-header > .monaco-button {
+	flex: 0 0 auto;
+	width: var(--vscode-spacing-size280);
+	min-width: var(--vscode-spacing-size280);
+	padding: var(--vscode-spacing-size40);
+}
+
+.search-view .search-regex-builder-summary {
+	margin: var(--vscode-spacing-size60) var(--vscode-spacing-sizeNone) var(--vscode-spacing-size100);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.search-view .search-regex-builder fieldset {
+	min-width: var(--vscode-spacing-sizeNone);
+	margin: var(--vscode-spacing-size80) var(--vscode-spacing-sizeNone);
+	padding: var(--vscode-spacing-sizeNone);
+	border: var(--vscode-spacing-sizeNone);
+}
+
+.search-view .search-regex-builder legend,
+.search-view .search-regex-builder-label,
+.search-view .search-regex-builder-literal-row > label {
+	display: block;
+	margin-bottom: var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.search-view .search-regex-builder-options,
+.search-view .search-regex-builder-flags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+}
+
+.search-view .search-regex-builder-options > legend,
+.search-view .search-regex-builder-flags > legend {
+	flex-basis: 100%;
+}
+
+.search-view .search-regex-builder-checkbox {
+	display: inline-flex;
+	min-height: var(--vscode-spacing-size240);
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+}
+
+.search-view .search-regex-builder-checkbox input {
+	width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	margin: var(--vscode-spacing-sizeNone);
+	accent-color: var(--vscode-focusBorder);
+}
+
+.search-view .search-regex-builder-checkbox label {
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.search-view .search-regex-builder-literal-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	align-items: end;
+}
+
+.search-view .search-regex-builder-literal-row > label {
+	grid-column: 1 / -1;
+	margin: var(--vscode-spacing-sizeNone);
+}
+
+.search-view .search-regex-builder-literal,
+.search-view .search-regex-builder-pattern,
+.search-view .search-regex-builder-sample {
+	box-sizing: border-box;
+	width: 100%;
+	padding: var(--vscode-spacing-size60);
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	font: inherit;
+}
+
+.search-view .search-regex-builder-pattern,
+.search-view .search-regex-builder-sample {
+	min-height: 60px;
+	resize: vertical;
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.search-view .search-regex-builder-literal:focus-visible,
+.search-view .search-regex-builder-pattern:focus-visible,
+.search-view .search-regex-builder-sample:focus-visible,
+.search-view .search-regex-builder-checkbox input:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.search-view .search-regex-builder-fragments,
+.search-view .search-regex-builder-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60);
+}
+
+.search-view .search-regex-builder-fragments {
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.search-view .search-regex-builder-fragments > .monaco-button {
+	min-width: var(--vscode-spacing-size400);
+	padding-inline: var(--vscode-spacing-size80);
+	font-family: var(--monaco-monospace-font);
+}
+
+.search-view .search-regex-builder-actions {
+	margin-top: var(--vscode-spacing-size100);
+}
+
+.search-view .search-regex-builder-status {
+	margin-top: var(--vscode-spacing-size100);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.search-view .search-regex-builder-status.error {
+	color: var(--vscode-errorForeground);
+}
+
+.search-view .search-regex-builder-matches {
+	margin: var(--vscode-spacing-size60) var(--vscode-spacing-sizeNone) var(--vscode-spacing-sizeNone);
+	padding-left: var(--vscode-spacing-size240);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.search-view .search-regex-builder-matches > li {
+	margin-bottom: var(--vscode-spacing-size60);
+	overflow-wrap: anywhere;
+}
+
+.search-view .search-regex-builder-captures {
+	margin: var(--vscode-spacing-size40) var(--vscode-spacing-sizeNone) var(--vscode-spacing-sizeNone);
+	padding-left: var(--vscode-spacing-size200);
+	color: var(--vscode-descriptionForeground);
+}
+
+.pane-body:not(.wide) .search-view .search-regex-builder-literal-row {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.pane-body:not(.wide) .search-view .search-regex-builder-add-literal {
+	width: 100%;
+}
+
 .search-view .search-widget .monaco-inputbox > .ibwrapper {
 	height: 100%;
 }

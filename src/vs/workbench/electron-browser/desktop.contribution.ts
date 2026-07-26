@@ -290,11 +290,16 @@ import product from '../../platform/product/common/product.js';
 			},
 			'window.dialogStyle': {
 				'type': 'string',
-				'enum': ['native', 'custom'],
-				'default': 'native',
+				'enum': ['notification', 'custom', 'native'],
+				'enumDescriptions': [
+					localize('window.dialogStyle.notification', "Show keyboard-focusable, non-modal notification actions."),
+					localize('window.dialogStyle.custom', "Use the custom workbench dialog."),
+					localize('window.dialogStyle.native', "Use the native operating-system dialog."),
+				],
+				'default': 'notification',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('dialogStyle', "Adjust the appearance of dialogs to be native by the OS or custom."),
-				agentsWindow: { default: 'custom' },
+				'description': localize('dialogStyle', "Controls whether decisions appear as non-modal notifications, custom workbench dialogs, or native operating-system dialogs."),
+				agentsWindow: { default: 'notification' },
 			},
 			'window.nativeTabs': {
 				'type': 'boolean',

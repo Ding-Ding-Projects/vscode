@@ -712,6 +712,9 @@ export class SearchView extends ViewPane {
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => {
 			this.triggerQueryChange({ shouldKeepAIResults: true });
 		}));
+		this._register(this.searchWidget.onDidRegexBuilderSearchOptionsChange(() => {
+			this.triggerQueryChange({ shouldKeepAIResults: true });
+		}));
 
 		this._register(this.searchWidget.getNotebookFilters().onDidChange(() => this.triggerQueryChange({ shouldKeepAIResults: true })));
 

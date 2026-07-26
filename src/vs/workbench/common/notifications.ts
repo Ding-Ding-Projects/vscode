@@ -27,6 +27,10 @@ export interface INotificationsModel {
 
 	setFilter(filter: Partial<INotificationsFilter>): void;
 
+	readonly history: readonly INotificationHistoryEntry[];
+	readonly onDidChangeHistory: Event<void>;
+	clearHistory(): void;
+
 	//#endregion
 
 
@@ -39,6 +43,13 @@ export interface INotificationsModel {
 	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IStatusHandle;
 
 	//#endregion
+}
+
+export interface INotificationHistoryEntry {
+	readonly severity: Severity;
+	readonly message: string;
+	readonly source?: string;
+	readonly dismissedAt: number;
 }
 
 export const enum NotificationChangeType {
@@ -170,6 +181,7 @@ export interface INotificationsFilter {
 export class NotificationsModel extends Disposable implements INotificationsModel {
 
 	private static readonly NO_OP_NOTIFICATION = new NoOpNotification();
+	private static readonly MAX_HISTORY_ENTRIES = 50;
 
 	private readonly _onDidChangeNotification = this._register(new Emitter<INotificationChangeEvent>());
 	readonly onDidChangeNotification = this._onDidChangeNotification.event;
@@ -180,8 +192,16 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 	private readonly _onDidChangeFilter = this._register(new Emitter<Partial<INotificationsFilter>>());
 	readonly onDidChangeFilter = this._onDidChangeFilter.event;
 
+	private readonly _onDidChangeHistory = this._register(new Emitter<void>());
+	readonly onDidChangeHistory = this._onDidChangeHistory.event;
+
 	private readonly _notifications: INotificationViewItem[] = [];
 	get notifications(): INotificationViewItem[] { return this._notifications; }
+
+	private readonly _history: INotificationHistoryEntry[] = [];
+	get history(): readonly INotificationHistoryEntry[] { return this._history; }
+
+	private readonly duplicateReplacements = new WeakSet<INotificationViewItem>();
 
 	private _statusMessage: IStatusMessageViewItem | undefined;
 	get statusMessage(): IStatusMessageViewItem | undefined { return this._statusMessage; }
@@ -220,7 +240,10 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 
 		// Deduplicate
 		const duplicate = this.findNotification(item);
-		duplicate?.close();
+		if (duplicate) {
+			this.duplicateReplacements.add(duplicate);
+			duplicate.close();
+		}
 
 		// Add to list as first entry
 		this._notifications.splice(0, 0, item);
@@ -268,12 +291,34 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 
 			const index = this._notifications.indexOf(item);
 			if (index >= 0) {
+				if (!this.duplicateReplacements.delete(item)) {
+					this._history.unshift({
+						severity: item.severity,
+						message: item.message.linkedText.toString().slice(0, 1000),
+						source: item.source?.slice(0, 200),
+						dismissedAt: Date.now()
+					});
+					if (this._history.length > NotificationsModel.MAX_HISTORY_ENTRIES) {
+						this._history.length = NotificationsModel.MAX_HISTORY_ENTRIES;
+					}
+					this._onDidChangeHistory.fire();
+				}
+
 				this._notifications.splice(index, 1);
 				this._onDidChangeNotification.fire({ item, index, kind: NotificationChangeType.REMOVE });
 			}
 		});
 
 		return item;
+	}
+
+	clearHistory(): void {
+		if (this._history.length === 0) {
+			return;
+		}
+
+		this._history.length = 0;
+		this._onDidChangeHistory.fire();
 	}
 
 	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IStatusHandle {
