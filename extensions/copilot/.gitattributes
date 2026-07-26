@@ -1,4 +1,4 @@
 * text=auto eol=lf
 
-# Enable Git LFS for SQLite database files
-*.sqlite filter=lfs diff=lfs merge=lfs -text
+# Simulation cache databases are stored as Desktop Material Cheap LFS pointers.
+# Keep these as ordinary LF-normalized text so Desktop Material can materialize them.

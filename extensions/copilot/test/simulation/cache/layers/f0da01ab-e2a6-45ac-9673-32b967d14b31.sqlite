@@ -1,3 +1,5 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:73064b9a8c987b1f514ffec5f19fd7b0edf16b83d883c3debe21e563a341ff28
+version desktop-material/cheap-lfs/v1
+release-tag assets
+asset-name f0da01ab-e2a6-45ac-9673-32b967d14b31.sqlite
 size 376832
+sha256 73064b9a8c987b1f514ffec5f19fd7b0edf16b83d883c3debe21e563a341ff28
