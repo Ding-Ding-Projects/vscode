@@ -45,3 +45,4 @@ Updated: 2026-07-26
 ## Historical compatibility
 
 No history was rewritten. Current `HEAD` has zero Git LFS-managed paths; historical commits still depend on Git LFS. Do not delete historical LFS data or the immutable `desktop-material-cheap-lfs-v1` release. The legacy mutable `assets` release is retained only as a historical migration source; no current pointer references it.
+
