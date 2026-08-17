@@ -17,6 +17,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ContextScopedHistoryInputBox } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import './media/mdFilterWidget.css';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { showHistoryKeybindingHint } from '../../../../platform/history/browser/historyWidgetKeybindingHint.js';
 import { MenuId, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
@@ -116,7 +117,10 @@ export class FilterWidget extends Widget {
 			this.focusContextKey = new RawContextKey(options.focusContextKey, false).bindTo(contextKeyService);
 		}
 
-		this.element = DOM.$('.viewpane-filter');
+		this.element = DOM.$('.viewpane-filter md3-search-filter');
+		const searchIcon = DOM.append(this.element, DOM.$('.md3-search-icon'));
+		DOM.addClass(searchIcon, Codicon.search.className);
+		searchIcon.setAttribute('aria-hidden', 'true');
 		[this.filterInputBox, this.focusTracker] = this.createInput(this.element);
 		this._register(this.filterInputBox);
 		this._register(this.focusTracker);
