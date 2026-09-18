@@ -32,7 +32,7 @@ Updated: 2026-09-18
 ## Pending verification
 
 - The default branch integration and remote-reference verification are complete at `b85037078ab7bbe2c632c211a21fbf326457fb09`.
-- Commit the handoff and roadmap refresh, push `main`, and repeat the remote-reference proof.
+- The handoff and roadmap refresh are committed in `290f1e8d8f115f86e09ac233a8bb2cf8e8588a29`, pushed to `main`, and confirmed by `git ls-remote`.
 - Clone the pushed public revision through Desktop Material's public-clone flow and verify materialization for all 97 Cheap LFS pointers. A signed-out repository added locally is detected, but lacks the GitHub Release account metadata needed to start materialization.
 - Record the triggered GitHub Actions installer/release outcome, publish the `/docs` Pages source, and synchronize the fork wiki.
 
