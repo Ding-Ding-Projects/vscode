@@ -1,6 +1,18 @@
 # Handoff
 
-Updated: 2026-07-26
+Updated: 2026-09-18
+
+## Repository closeout inventory
+
+- The primary checkout is `C:\Users\cntow\Documents\GitHub\vscode` on `main`.
+- The fetched remote is `https://github.com/Ding-Ding-Projects/vscode`.
+- The primary checkout is clean at `b85037078ab7bbe2c632c211a21fbf326457fb09`.
+- `git worktree list --porcelain` reported only the primary checkout. No linked checkout was discovered.
+- `git stash list` reported no stashes. `git ls-files -u` reported no unmerged index entries.
+- The fetched remote advanced by one commit, `b85037078ab7bbe2c632c211a21fbf326457fb09`, which was integrated by fast-forward.
+- `git ls-remote origin refs/heads/main` returned the same commit, proving the default branch reference is synchronized.
+- No conflicts or conflict markers were present, so no conflict-resolution choice was required.
+- No external archive was created because no deletion candidate existed. The archive prerequisite remains mandatory before any future removal.
 
 ## Completed locally
 
@@ -19,17 +31,20 @@ Updated: 2026-07-26
 
 ## Pending verification
 
-- Commit the remaining source and documentation changes, push `main`, and prove the remote default branch contains the full delivery.
+- The default branch integration and remote-reference verification are complete at `b85037078ab7bbe2c632c211a21fbf326457fb09`.
+- Commit the handoff and roadmap refresh, push `main`, and repeat the remote-reference proof.
 - Clone the pushed public revision through Desktop Material's public-clone flow and verify materialization for all 97 Cheap LFS pointers. A signed-out repository added locally is detected, but lacks the GitHub Release account metadata needed to start materialization.
 - Record the triggered GitHub Actions installer/release outcome, publish the `/docs` Pages source, and synchronize the fork wiki.
 
 ## External state
 
 - GitHub Issues are disabled on this fork, so there is no fork issue queue to triage.
+- The 2026-09-18 issue scan was attempted with `gh issue list --repo Ding-Ding-Projects/vscode --state open --limit 100`; GitHub returned that issues are disabled. No issue mutation was attempted.
 - The six open Desktop Material issues were read in full. None is a prerequisite for this task: three are separate product/capture work, two are blocked on concurrent work or external decisions, and the shipped tab-overflow fix awaits its own live acceptance evidence. The dirty sibling checkout was not changed.
 - GitHub Projects are intentionally skipped for this delivery at the user's explicit direction. Existing Projects were not inspected or changed.
 - Repository release immutability is an externally configured publishing prerequisite and the GitHub administration endpoint reported it enabled on 2026-07-26. The automatic Actions token cannot read that admin-only setting, so the release job uses GitHub CLI's draft/upload/publish flow and then fails closed unless the published release reports `immutable: true`, has one exact installer asset, and its tag points directly to the tested commit.
 - The sibling Desktop Material checkout contains unrelated user work and was kept read-only.
+- No linked checkout, stash, active task-owned branch, or ownership-uncertain cleanup candidate was discovered in this repository, so no removal was authorized or attempted.
 
 ### Open-issue scan
 
